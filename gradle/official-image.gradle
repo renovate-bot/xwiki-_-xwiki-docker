@@ -77,8 +77,8 @@ def libraryRoles = [
 
 // Check the roles against that map as soon as the model is read, because they are not only ours: they drive the tags
 // and the section comments of the file this script submits to docker-library. An unknown role would silently emit a
-// 'null' section header and drop that cycle's stable-*/lts-* tag aliases, and the Pull Request itself is named after
-// the single stable cycle. Failing at configuration time beats noticing it in a review upstream.
+// 'null' section header and drop that cycle's stable-*/lts-* tag aliases, and the Pull Request body labels every
+// cycle it lists by its role. Failing at configuration time beats noticing it in a review upstream.
 tokens.each { cycle, data ->
     if (!libraryRoles.containsKey(data.role)) {
         throw new GradleException("Cycle [${cycle}] of [versions.json] declares role [${data.role}], which is not " +
@@ -150,6 +150,23 @@ def libraryGitCommits = {
 
 def defaultVariant = dbVariants.keySet().first()
 
+// One library file split per cycle: the file is a sequence of blank-line-separated records, each naming in its
+// 'Directory' line the cycle directory it builds (and, for the first record of a cycle, carrying that cycle's section
+// comment), plus a header record that names none and is therefore left out. Comparing the published file to the
+// generated one cycle by cycle is what lets the submission below name the cycles a run actually changes: the file
+// always describes every cycle, so its content alone would name them all, whatever the run does.
+def libraryCycleBlocks = { String fileContent ->
+    def blocks = [:]
+    fileContent.split('\n\n').each { block ->
+        def directory = block.readLines().find { it.startsWith('Directory: ') }
+        if (directory) {
+            def cycle = directory.substring('Directory: '.length()).tokenize('/').first()
+            blocks[cycle] = (blocks[cycle] ?: []) << block
+        }
+    }
+    return blocks
+}
+
 // Generate the complete content of the official Docker library file from the version data model, using the algorithm
 // above. Verified to reproduce the currently published file byte for byte, but for the 'GitRepo' line corrected above
 // and the 'GitCommit' lines, which resolve to the real per-cycle last-touching commits.
@@ -218,6 +235,18 @@ task submitOfficialImage() {
             logger.lifecycle('The generated library file is identical to the upstream one; nothing to submit.')
             return
         }
+        // The cycles this run changes: those whose blocks differ from the published ones, a cycle the published file
+        // does not describe at all being a new one. They name the branch, the commit and the Pull Request below, which
+        // the model as a whole would overstate - a release moves one cycle while the file lists them all, so naming
+        // them all would announce releases the submission does not carry.
+        def upstreamBlocks = libraryCycleBlocks(upstreamContent)
+        def generatedBlocks = libraryCycleBlocks(content)
+        def changedCycles = tokens.keySet().findAll { generatedBlocks[it] != upstreamBlocks[it] }
+        def changedVersions = changedCycles.collect { tokens[it].xwikiVersion }
+        logger.lifecycle(changedCycles.isEmpty() ?
+            "No cycle changed; ${libraryPath} differs from the published one outside the per-cycle blocks." :
+            "Cycles changed by this submission: ${changedCycles.join(', ')}.")
+
         def upstreamFile = file('build/library-xwiki.upstream')
         upstreamFile.text = upstreamContent
         def diff = capture(['git', '--no-pager', 'diff', '--no-index', '--',
@@ -233,13 +262,15 @@ task submitOfficialImage() {
             return
         }
 
-        // Resolve the GitHub user, and the branch and commit message named after the stable version. Exactly one cycle
-        // carries that role, which the check at the top of this script enforces. Both are needed by the guards below
-        // as well as by the write path, hence resolved before them.
+        // Resolve the GitHub user, and the branch and commit message named after the versions this run changes,
+        // newest cycle first (the order 'versions.json' declares them in). Both are needed by the guards below as well
+        // as by the write path, hence resolved before them.
+        // A run changing nothing inside the per-cycle blocks names no version at all: the only such change today is
+        // the 'GitRepo' correction above, and naming a version for it would announce a release it does not carry.
         def login = capture(['env', '-u', 'GH_TOKEN', 'gh', 'api', 'user', '--jq', '.login'])
-        def stableVersion = tokens.find { cycle, data -> data.role == 'stable' }.value.xwikiVersion
-        def branch = "update-xwiki-${stableVersion}"
-        def commitMessage = "Update XWiki to ${stableVersion}"
+        def branch = changedVersions.isEmpty() ? 'update-xwiki' : "update-xwiki-${changedVersions.join('-')}"
+        def commitMessage = changedVersions.isEmpty() ?
+            'Update the XWiki images' : "Update XWiki to ${changedVersions.join(', ')}"
 
         // The working tree must be clean and HEAD must be on the branch docker-library fetches: the GitCommit values we
         // emit are the last commits that touched each cycle directory, and docker-library fetches those exact commits
@@ -323,8 +354,10 @@ task submitOfficialImage() {
             '-f', "branch=${branch}"])
 
         // Open the PR against upstream.
-        def prBody = 'Update the XWiki official images to the latest releases:\n\n' +
-            tokens.collect { cycle, data -> "- `${cycle}` (${libraryRoles[data.role].label}): ${data.xwikiVersion}" }
+        def prBody = changedCycles.isEmpty() ?
+            "Update the ${libraryPath} metadata of the XWiki official images.\n" :
+            'Update the XWiki official images to the latest releases:\n\n' + changedCycles
+                .collect { "- `${it}` (${libraryRoles[tokens[it].role].label}): ${tokens[it].xwikiVersion}" }
                 .join('\n') + '\n'
         def prUrl = capture(['env', '-u', 'GH_TOKEN', 'gh', 'pr', 'create', '--repo', upstreamRepo,
             '--base', defaultBranch, '--head', "${login}:${branch}",
