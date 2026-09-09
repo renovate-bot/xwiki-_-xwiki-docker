@@ -291,10 +291,15 @@ task submitOfficialImage() {
 
         // The fork under your own account that the branch and the file update are pushed to, ensured to exist
         // (idempotent) and synced to the target's default branch.
+        // The sync is forced, because the fork's default branch is a mirror here and nothing else: the working branch
+        // below is created off it and the file update is committed there, never on the default branch itself. Without
+        // '--force' any commit sitting on it that upstream does not have - a hand-edit, or a Pull Request merged
+        // upstream squashed, which leaves the fork one commit ahead for good - makes the sync refuse to fast-forward
+        // and fails the release step, with nothing on that branch worth keeping to show for it.
         def fork = "${login}/${upstreamRepo.tokenize('/')[1]}"
         capture(['env', '-u', 'GH_TOKEN', 'gh', 'repo', 'fork', upstreamRepo, '--clone=false'])
         capture(['env', '-u', 'GH_TOKEN', 'gh', 'repo', 'sync', fork, '--source', upstreamRepo,
-            '--branch', defaultBranch])
+            '--branch', defaultBranch, '--force'])
 
         // Create the working branch on the fork off the freshly synced default branch.
         def baseSha = capture(['env', '-u', 'GH_TOKEN', 'gh', 'api',
