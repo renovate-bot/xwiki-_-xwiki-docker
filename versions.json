@@ -37,8 +37,8 @@
         },
         "17": {
             "role": "lts",
-            "xwikiVersion": "17.10.12",
-            "xwikiSha256": "68ce377fa59b2bd411eef863ab1216d08b63803b0a26264b3b00679fa0183ead",
+            "xwikiVersion": "17.10.13",
+            "xwikiSha256": "56d9efff50dcf9448f051331be5a81d7bababeffa4e8f73bd27b8217d005d941",
             "mysqlJDBCVersion": "26.7.0",
             "mysqlJDBCSha256": "69084713593a4aa8d07c383619b9639276f08bccf8faf1c562178147d389b1e1",
             "mariadbJDBCVersion": "3.5.10",
