@@ -7,14 +7,14 @@
     "cycles": {
         "18": {
             "role": "stable",
-            "xwikiVersion": "18.8.0",
-            "xwikiSha256": "4229bed73db82721ee8e795c1136dbf5d9827aade8894027687d95655f8907b1",
+            "xwikiVersion": "18.9.0",
+            "xwikiSha256": "e15f79ad379cca52cdeb22035c2fd4d04aad8b18acefbe429e770943bde2c823",
             "mysqlJDBCVersion": "26.7.0",
             "mysqlJDBCSha256": "69084713593a4aa8d07c383619b9639276f08bccf8faf1c562178147d389b1e1",
             "mariadbJDBCVersion": "3.5.10",
             "mariadbJDBCSha256": "919b8c1c771d9ee3465811462f242c9543ab401e140c64988ddbf1d8abcb18b2",
-            "postgresJDBCVersion": "42.7.13",
-            "postgresJDBCSha256": "6e0e4cc2d8cae902084f8a2b18728b073a6fd9d1f87c9d8bff8f298c18185b93",
+            "postgresJDBCVersion": "42.7.14",
+            "postgresJDBCSha256": "73914527305a40cce504b0d3d90b23caf565136912d607ae8ae7c5895512332c",
             "tomcatImageTag": {
                 "tomcatVersion": "10",
                 "javaVersion": "21"
